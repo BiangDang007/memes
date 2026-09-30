@@ -13,8 +13,8 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-appl
 header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2}
 h1{margin:0 auto 0 0;font-size:22px}
 h1 span{color:var(--accent)}
-input[type=text],input[type=password],textarea{background:var(--panel);border:1px solid var(--line);color:var(--fg);padding:8px 10px;border-radius:8px;min-width:0;font:inherit}
-textarea{width:100%;min-height:120px;resize:vertical}
+input[type=text],input[type=password],textarea,select{background:var(--panel);border:1px solid var(--line);color:var(--fg);padding:8px 10px;border-radius:8px;min-width:0;font:inherit}
+textarea{width:100%;min-height:110px;resize:vertical}
 button,.btn{background:var(--panel);color:var(--fg);border:1px solid var(--line);padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit;text-align:center}
 .primary{background:var(--accent);color:#111;border-color:var(--accent);font-weight:700}
 button:disabled{opacity:.4;cursor:not-allowed}
@@ -29,32 +29,43 @@ h2{margin:0 0 8px;font-size:12px;color:var(--muted);letter-spacing:.1em}
 .chips{display:flex;flex-wrap:wrap;gap:8px;min-height:100px;border:2px dashed var(--line);border-radius:10px;padding:8px;margin-top:8px}
 .chips:empty::before{color:var(--muted);margin:auto;font-size:13px}
 #chars:empty::before{content:"點上面的迷因，或上傳角色"}
-#acts:empty::before{content:"拍一張，或上傳動作樣本"}
+#acts:empty::before{content:"拍一張、上傳動作樣本，或點下面的常用表情"}
 .chip{position:relative;width:84px}
-.chip img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
+.chip img,.chip .txt{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
+.chip .txt{display:grid;place-items:center;background:#262a35;font-weight:700;font-size:20px}
 .chip b{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#000c;text-align:center;line-height:20px;cursor:pointer;font-size:13px}
 .chip small{display:block;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.presets button{padding:4px 10px;border-radius:999px;font-size:13px}
 .cam{position:relative;aspect-ratio:4/3;background:#000;border-radius:10px;overflow:hidden}
 .cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .cam video{transform:scaleX(-1)}
 .cam canvas{pointer-events:none}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
 .row>*{flex:1}
-#results{padding:0 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+label.chk{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);margin-top:8px}
+#results{padding:0 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 .tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
-.tile img{width:100%;border-radius:8px;display:block}
+.tile img{width:100%;aspect-ratio:1;object-fit:contain;border-radius:8px;display:block;background:conic-gradient(#2a2f3a 25%,#1d2029 0 50%,#2a2f3a 0 75%,#1d2029 0) 0 0/24px 24px}
 .tile small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
-.tile a{color:var(--accent);font-size:13px}
+.tile .links{display:flex;gap:10px;margin-top:4px}
+.tile a,.tile button{color:var(--accent);font-size:13px;background:none;border:0;padding:0;cursor:pointer}
 .err{color:var(--bad);font-size:13px}
 #status{color:var(--muted);font-size:13px}
 .hint{color:var(--muted);font-size:12px;margin:6px 0 0}
+#export{padding:12px 16px 40px}
+#export .panel{max-width:960px}
+#howto{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13px}
+#howto li{margin:2px 0}
+#tg{display:grid;gap:8px;grid-template-columns:1fr 1fr 1fr auto;margin-top:8px}
+@media (max-width:700px){#tg{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <header>
   <h1>memes<span>.com</span></h1>
   <input id="key" type="password" placeholder="貼上 Gemini API key（只存在你的瀏覽器）" aria-label="API key" size="36">
-  <button id="gen" class="primary" disabled>生成一連串</button>
+  <button id="gen" class="primary" disabled>生成貼圖包</button>
   <span id="status"></span>
 </header>
 <main>
@@ -66,46 +77,86 @@ h2{margin:0 0 8px;font-size:12px;color:var(--muted);letter-spacing:.1em}
     <div id="chars" class="chips"></div>
   </aside>
   <section class="panel">
-    <h2>2. 動作</h2>
+    <h2>2. 動作 / 表情</h2>
     <div class="cam"><video id="video" autoplay playsinline muted></video><canvas id="overlay"></canvas></div>
     <div class="row">
       <button id="cam">開鏡頭</button>
       <button id="snap" disabled>拍一張</button>
       <label class="btn">上傳動作樣本<input id="upAct" type="file" accept="image/*" multiple hidden></label>
     </div>
+    <div id="presets" class="presets"></div>
     <div id="acts" class="chips"></div>
   </section>
   <section class="panel">
     <h2>3. 指令（可改）</h2>
     <textarea id="prompt" aria-label="指令"></textarea>
-    <p class="hint">每個角色 × 每個動作各生成一張。key 不會經過任何伺服器，瀏覽器直接送 Google。</p>
+    <label class="chk"><input id="label" type="checkbox" checked> 把動作名稱印在貼圖上（只對常用表情）</label>
+    <p class="hint">每個角色 × 每個動作各一張。生成後自動去背、裁成 512×512 透明貼圖、加白邊。key 不經任何伺服器。</p>
   </section>
 </main>
 <section id="results"></section>
-<div class="row" style="padding:12px 16px 40px"><button id="zip" class="primary" hidden>下載全部（zip）</button></div>
+<section id="export" hidden>
+  <div class="panel">
+    <h2>4. 拿去各平台用</h2>
+    <div class="row">
+      <select id="platform" aria-label="平台"></select>
+      <button id="zip" class="primary">下載貼圖包（zip）</button>
+    </div>
+    <ul id="howto"></ul>
+    <div id="tg">
+      <input id="tgToken" type="password" placeholder="Telegram bot token（@BotFather 給的）" aria-label="Telegram bot token">
+      <input id="tgUser" type="text" placeholder="你的 Telegram user id（數字，可問 @userinfobot）" aria-label="Telegram user id">
+      <input id="tgTitle" type="text" placeholder="貼圖包名稱" aria-label="貼圖包名稱" value="memes.com 貼圖">
+      <button id="tgGo">建立 Telegram 貼圖包</button>
+    </div>
+    <p id="tgOut" class="hint"></p>
+  </div>
+</section>
 <script type="module">
 const $ = s => document.querySelector(s);
 const status = t => $('#status').textContent = t;
 const MODEL = 'gemini-3.1-flash-image';          // 2.5-flash-image 2026-10-02 關閉；3.1 是多參考圖的主力款
 const FACE_MODEL = 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
-const DEFAULT_PROMPT = `Image 1 is a meme character. Image 2 is a photo of a person doing a pose, gesture and facial expression.
-Redraw the character from image 1 doing exactly the same pose, gesture and facial expression as the person in image 2.
-Keep the character's identity, art style, colors and outfit. Clean simple background. No text.`;
+const S = 512;                                     // 貼圖畫布：各平台通用的最大邊
+const DEFAULT_PROMPT = `Image 1 is a meme character. Redraw it doing the action described (or shown in image 2: copy that person's pose, gesture and facial expression exactly).
+Keep the character's identity, art style, colors and outfit. Exaggerate the expression, meme sticker style.`;
+const STICKER_RULES = `Render as a sticker: one character only, centered, whole figure visible, bold clean outlines, flat colors, on a solid pure green (#00FF00) background. No text, no watermark, nothing else in the image.`;
+/* 常用貼圖表情（不用比動作，純文字）。想改就改這張表，格式：[貼圖上的字, 給模型的英文描述] */
+const PRESETS = [
+  ['讚', 'thumbs up, big grin'], ['哭', 'crying with big tears'], ['笑死', 'laughing hysterically, tears of joy'],
+  ['傻眼', 'shocked, jaw dropped, wide eyes'], ['生氣', 'angry, steam coming from head'], ['OK', 'making an OK hand sign, winking'],
+  ['晚安', 'sleepy, yawning, hugging a pillow'], ['謝謝', 'bowing politely with hands together'], ['加油', 'cheering with a raised fist'],
+  ['？', 'confused, tilted head, question marks around'], ['愛你', 'making a heart shape with both hands, blushing'], ['沒問題', 'confident salute'],
+];
+/* 各平台輸出規格：box = 貼圖最大尺寸；extra = 額外檔案 */
+const PLATFORMS = {
+  generic:  { label: '通用 / IG / Threads / FB（512×512 PNG）', box: [512, 512], type: 'image/png', ext: 'png' },
+  whatsapp: { label: 'WhatsApp（512×512 WebP ≤100KB + 96×96 tray）', box: [512, 512], type: 'image/webp', ext: 'webp', maxKB: 100, extra: s => [['tray.png', fit(s[0], 96, 96, 'image/png')]] },
+  telegram: { label: 'Telegram（512×512 PNG）', box: [512, 512], type: 'image/png', ext: 'png' },
+  line:     { label: 'LINE Creators Market（≤370×320 PNG + main/tab）', box: [370, 320], type: 'image/png', ext: 'png', extra: s => [['main.png', fit(s[0], 240, 240, 'image/png')], ['tab.png', fit(s[0], 96, 74, 'image/png')]] },
+  discord:  { label: 'Discord（320×320 PNG）', box: [320, 320], type: 'image/png', ext: 'png' },
+};
+const HOWTO = {
+  generic: ['手機：每張按「分享」→ 選 IG / Threads / FB / LINE / WhatsApp，直接傳或發限動。', 'IG 限動：存到相簿 → 貼圖 → 從相簿選這張透明 PNG。', 'iPhone（iOS 17+）：存到相簿後長按角色 → 「加入貼圖」，之後鍵盤到處都能貼。'],
+  whatsapp: ['WhatsApp 沒有網頁匯入：下載 zip 後用任何「貼圖製作」app 匯入（一包 3～30 張）；或每張直接「分享」當圖片傳。'],
+  telegram: ['最直接：下面填 bot token 和你的 user id，按「建立」，會給你一個 t.me/addstickers 連結，點了就裝好。', '不想弄 bot：下載 zip 後把 PNG 傳給 @Stickers 機器人手動建。'],
+  line: ['LINE 個人貼圖走 LINE Creators Market 上傳＋審核。一組要 8 / 16 / 24 / 32 / 40 張，zip 內已附 main.png、tab.png。'],
+  discord: ['Discord：伺服器要有 Boost 等級，管理員在「伺服器設定 → 貼圖」上傳 320×320 PNG（≤512KB）。'],
+};
 
 let templates = [], chars = [], acts = [], results = [];
 const uid = () => Math.random().toString(36).slice(2);
-
 $('#prompt').value = localStorage.getItem('memes.prompt') || DEFAULT_PROMPT;
 $('#prompt').oninput = e => localStorage.setItem('memes.prompt', e.target.value);
 $('#key').value = localStorage.getItem('memes.key') || '';
 $('#key').oninput = e => { localStorage.setItem('memes.key', e.target.value.trim()); updateGen(); };
 
-/* ---------- 1. 角色：imgflip 迷因庫 或 上傳 ---------- */
+/* ---------- 1. 角色 ---------- */
 async function loadGallery() {
   status('載入迷因庫…');
   try {
     templates = (await (await fetch('https://api.imgflip.com/get_memes')).json()).data.memes;
-    renderGallery(); status(`${templates.length} 張迷因就緒：選角色 → 拍動作 → 貼 key → 生成`);
+    renderGallery(); status(`${templates.length} 張迷因就緒：選角色 → 選表情 → 貼 key → 生成`);
   } catch { status('迷因庫載入失敗（可直接上傳角色）'); }
 }
 function renderGallery(q = '') {
@@ -116,27 +167,30 @@ function renderGallery(q = '') {
   }));
 }
 $('#search').oninput = e => renderGallery(e.target.value.trim().toLowerCase());
-function addChar(name, src) {            // src：imgflip 網址 或 上傳的 File
+function addChar(name, src) {
   if (chars.some(c => c.src === src)) return;
   chars.push({ id: uid(), name, src, thumb: typeof src === 'string' ? src : URL.createObjectURL(src) });
   renderChips();
 }
 $('#upChar').onchange = e => { [...e.target.files].forEach(f => addChar(f.name.replace(/\.\w+$/, ''), f)); e.target.value = ''; };
 
-/* ---------- 2. 動作：鏡頭快照 或 上傳樣本 ---------- */
-function addAct(blob) { acts.push({ id: uid(), blob, thumb: URL.createObjectURL(blob) }); renderChips(); }
+/* ---------- 2. 動作：照片（blob）或文字（text） ---------- */
+function addAct(blob) { acts.push({ id: uid(), blob, label: `動作${acts.length + 1}`, thumb: URL.createObjectURL(blob) }); renderChips(); }
+function addPreset([label, text]) { if (!acts.some(a => a.text === text)) { acts.push({ id: uid(), text, label }); renderChips(); } }
 $('#upAct').onchange = e => { [...e.target.files].forEach(addAct); e.target.value = ''; };
+$('#presets').replaceChildren(...PRESETS.map(p => Object.assign(document.createElement('button'), { textContent: p[0], onclick: () => addPreset(p) })));
 
-function chip(thumb, label, onRemove) {
+function chip(item, onRemove) {
   const d = document.createElement('div'); d.className = 'chip';
-  const img = new Image(); img.src = thumb; img.alt = label;
+  const pic = item.thumb ? Object.assign(new Image(), { src: item.thumb, alt: item.label || item.name })
+                         : Object.assign(document.createElement('div'), { className: 'txt', textContent: item.label });
   const x = document.createElement('b'); x.textContent = '×'; x.title = '移除'; x.onclick = onRemove;
-  const s = document.createElement('small'); s.textContent = label;   // textContent：外部資料不進 innerHTML
-  d.append(img, x, s); return d;
+  const s = document.createElement('small'); s.textContent = item.name || item.label;   // textContent：外部資料不進 innerHTML
+  d.append(pic, x, s); return d;
 }
 function renderChips() {
-  $('#chars').replaceChildren(...chars.map(c => chip(c.thumb, c.name, () => { chars = chars.filter(x => x !== c); renderChips(); })));
-  $('#acts').replaceChildren(...acts.map((a, i) => chip(a.thumb, `動作 ${i + 1}`, () => { acts = acts.filter(x => x !== a); renderChips(); })));
+  $('#chars').replaceChildren(...chars.map(c => chip(c, () => { chars = chars.filter(x => x !== c); renderChips(); })));
+  $('#acts').replaceChildren(...acts.map(a => chip(a, () => { acts = acts.filter(x => x !== a); renderChips(); })));
   updateGen();
 }
 const updateGen = () => $('#gen').disabled = !(chars.length && acts.length && $('#key').value.trim());
@@ -145,19 +199,17 @@ const video = $('#video'), overlay = $('#overlay');
 $('#cam').onclick = async () => {
   try {
     video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-    $('#snap').disabled = false;
-    trackFaces();                                   // 綠框只是加分項，載不到也能拍
-  } catch (e) { status('開不了鏡頭：' + e.message + '（可上傳動作樣本）'); }
+    $('#snap').disabled = false; trackFaces();
+  } catch (e) { status('開不了鏡頭：' + e.message + '（可上傳動作樣本或用常用表情）'); }
 };
 $('#snap').onclick = () => {
   if (!video.videoWidth) return status('鏡頭還沒準備好，再按一次');
   const c = Object.assign(document.createElement('canvas'), { width: video.videoWidth, height: video.videoHeight });
-  const ctx = c.getContext('2d'); ctx.setTransform(-1, 0, 0, 1, c.width, 0); ctx.drawImage(video, 0, 0);   // 鏡像＝所見即所得
+  const ctx = c.getContext('2d'); ctx.setTransform(-1, 0, 0, 1, c.width, 0); ctx.drawImage(video, 0, 0);
   c.toBlob(addAct, 'image/jpeg', .9);
 };
-
 let detector = null;
-async function trackFaces() {                       // MediaPipe 人臉框（IG 影片那種綠框）
+async function trackFaces() {                       // MediaPipe 人臉綠框，載不到就跳過
   try {
     if (!detector) {
       const { FaceDetector, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs');
@@ -165,20 +217,17 @@ async function trackFaces() {                       // MediaPipe 人臉框（IG 
       detector = await FaceDetector.createFromOptions(vision, { baseOptions: { modelAssetPath: FACE_MODEL, delegate: 'GPU' }, runningMode: 'VIDEO' });
     }
   } catch (e) { console.warn('MediaPipe 沒載入，跳過綠框', e); return; }
-  const ctx = overlay.getContext('2d');
-  let last = -1;
+  const ctx = overlay.getContext('2d'); let last = -1;
   const loop = () => {
     if (!video.srcObject) return;
     if (video.videoWidth && video.currentTime !== last) {
       last = video.currentTime;
       if (overlay.width !== video.videoWidth) { overlay.width = video.videoWidth; overlay.height = video.videoHeight; }
-      const W = overlay.width;
-      ctx.clearRect(0, 0, W, overlay.height);
+      const W = overlay.width; ctx.clearRect(0, 0, W, overlay.height);
       ctx.strokeStyle = '#0f0'; ctx.fillStyle = '#0f0'; ctx.lineWidth = 3; ctx.font = 'bold 22px system-ui';
       for (const d of detector.detectForVideo(video, performance.now()).detections) {
-        const b = d.boundingBox, x = W - b.originX - b.width;     // 預覽是鏡像，x 反過來
-        ctx.strokeRect(x, b.originY, b.width, b.height);
-        ctx.fillText('make a face', x, b.originY - 8);
+        const b = d.boundingBox, x = W - b.originX - b.width;
+        ctx.strokeRect(x, b.originY, b.width, b.height); ctx.fillText('make a face', x, b.originY - 8);
       }
     }
     requestAnimationFrame(loop);
@@ -186,70 +235,145 @@ async function trackFaces() {                       // MediaPipe 人臉框（IG 
   loop();
 }
 
-/* ---------- 3. 生成：角色 × 動作 → Gemini 改圖 ---------- */
-async function toB64(blob, max = 1024) {           // 縮到長邊 1024，省流量也省 token
-  const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('圖片讀不了')); i.src = URL.createObjectURL(blob); });
+/* ---------- 3. 生成 → 去背 → 貼圖 ---------- */
+const canvas = (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h });
+const loadImg = blob => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('圖片讀不了')); i.src = URL.createObjectURL(blob); });
+const toBlob = (c, type = 'image/png', q = .9) => new Promise(r => c.toBlob(r, type, q));
+async function toB64(blob, max = 1024) {
+  const img = await loadImg(blob);
   const k = Math.min(1, max / Math.max(img.width, img.height));
-  const c = Object.assign(document.createElement('canvas'), { width: Math.round(img.width * k), height: Math.round(img.height * k) });
+  const c = canvas(Math.round(img.width * k), Math.round(img.height * k));
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   return c.toDataURL('image/jpeg', .9).split(',')[1];
 }
-async function generate(charB64, actB64, prompt, key) {
+async function generate(prompt, images, key) {     // images: base64 jpeg 陣列，第 1 張是角色
   const r = await fetch(`https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent`, {
     method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [
-      { text: prompt },
-      { inline_data: { mime_type: 'image/jpeg', data: charB64 } },
-      { inline_data: { mime_type: 'image/jpeg', data: actB64 } },
-    ] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }),
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, ...images.map(data => ({ inline_data: { mime_type: 'image/jpeg', data } }))] }],
+                           generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error?.message || `HTTP ${r.status}`);
   const part = j.candidates?.[0]?.content?.parts?.find(p => p.inlineData || p.inline_data);
   if (!part) throw new Error('模型沒回圖：' + (j.candidates?.[0]?.finishReason || j.promptFeedback?.blockReason || '未知原因'));
   const d = part.inlineData || part.inline_data;
-  return { mimeType: d.mimeType || d.mime_type, data: d.data };
+  return await (await fetch(`data:${d.mimeType || d.mime_type};base64,${d.data}`)).blob();
+}
+/* 綠幕去背 → 裁到內容 → 置中放進 512×512 → 白邊 → （可選）印字。回傳 canvas。
+   ponytail: 純顏色門檻去背，角色本身帶綠色會被吃掉；要更準再換瀏覽器端分割模型。 */
+async function toSticker(blob, text) {
+  const img = await loadImg(blob);
+  const c = canvas(img.width, img.height), ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
+  const im = ctx.getImageData(0, 0, c.width, c.height), p = im.data;
+  let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+  for (let i = 0; i < p.length; i += 4) {
+    const r = p[i], g = p[i + 1], b = p[i + 2], green = g - Math.max(r, b);   // 綠幕強度
+    if (green > 90) p[i + 3] = 0;
+    else if (green > 30) { p[i + 3] = Math.round(255 * (1 - (green - 30) / 60)); p[i + 1] = Math.min(g, (r + b) / 2); }  // 邊緣：半透明＋去綠邊
+    if (p[i + 3]) { const x = (i / 4) % c.width, y = (i / 4 / c.width) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 < 0) { x0 = 0; y0 = 0; x1 = c.width - 1; y1 = c.height - 1; }       // 沒偵測到綠幕：整張照放
+  ctx.putImageData(im, 0, 0);
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, pad = 28, k = Math.min((S - 2 * pad) / bw, (S - 2 * pad) / bh);
+  const dw = bw * k, dh = bh * k, dx = (S - dw) / 2, dy = (S - dh) / 2;
+  const sil = canvas(S, S), sc = sil.getContext('2d');                       // 白邊：剪影往 12 個方向位移再塗白
+  for (let a = 0; a < 360; a += 30) sc.drawImage(c, x0, y0, bw, bh, dx + Math.cos(a * Math.PI / 180) * 9, dy + Math.sin(a * Math.PI / 180) * 9, dw, dh);
+  sc.globalCompositeOperation = 'source-in'; sc.fillStyle = '#fff'; sc.fillRect(0, 0, S, S);
+  const out = canvas(S, S), o = out.getContext('2d');
+  o.drawImage(sil, 0, 0); o.drawImage(c, x0, y0, bw, bh, dx, dy, dw, dh);
+  if (text) caption(o, S, S, text);
+  return out;
+}
+function caption(ctx, W, H, text) {                // 底部大字，白字黑邊；太長就縮
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round';
+  const font = s => `900 ${s}px Impact,"Arial Black","Noto Sans TC",sans-serif`;
+  let size = Math.round(H / 5); ctx.font = font(size);
+  while (size > 16 && ctx.measureText(text).width > W * .9) ctx.font = font(--size);
+  ctx.lineWidth = size / 8; ctx.strokeText(text, W / 2, H - 8); ctx.fillText(text, W / 2, H - 8);
 }
 $('#gen').onclick = async () => {
   const gen = $('#gen'); gen.disabled = true;
-  results = []; $('#results').replaceChildren(); $('#zip').hidden = true;
-  const key = $('#key').value.trim(), prompt = $('#prompt').value.trim() || DEFAULT_PROMPT;
+  results = []; $('#results').replaceChildren(); $('#export').hidden = true;
+  const key = $('#key').value.trim(), base = ($('#prompt').value.trim() || DEFAULT_PROMPT) + '\n' + STICKER_RULES;
   const total = chars.length * acts.length; let n = 0;
-  const actB64 = await Promise.all(acts.map(a => toB64(a.blob)));
+  const actB64 = await Promise.all(acts.map(a => a.blob ? toB64(a.blob) : null));
   for (const c of chars) {
     let charB64;
     try { charB64 = await toB64(typeof c.src === 'string' ? await (await fetch(c.src)).blob() : c.src); }
-    catch (e) { acts.forEach((_, i) => tile(null, `${c.name} × 動作${i + 1}`, '角色圖讀不到：' + e.message)); n += acts.length; continue; }
+    catch (e) { acts.forEach(a => tile(null, `${c.name} × ${a.label}`, '角色圖讀不到：' + e.message)); n += acts.length; continue; }
     for (let i = 0; i < acts.length; i++) {
-      const label = `${c.name} × 動作${i + 1}`;
+      const a = acts[i], label = `${c.name} × ${a.label}`;
       status(`生成中 ${++n}/${total}：${label}`);
       try {
-        const { mimeType, data } = await generate(charB64, actB64[i], prompt, key);
-        const blob = await (await fetch(`data:${mimeType};base64,${data}`)).blob();
-        const file = `${c.name.replace(/[^\w一-鿿]+/g, '_')}-act${i + 1}.${mimeType.includes('png') ? 'png' : 'jpg'}`;
-        results.push({ file, blob }); tile(blob, label, null, file);
+        const prompt = a.text ? `${base}\nAction: ${a.label} — ${a.text}.` : base;
+        const raw = await generate(prompt, a.blob ? [charB64, actB64[i]] : [charB64], key);
+        const sticker = await toSticker(raw, a.text && $('#label').checked ? a.label : '');
+        const png = await toBlob(sticker);
+        const file = `${c.name}-${a.label}`.replace(/[^\w一-鿿]+/g, '_');
+        results.push({ file, png, raw, sticker }); tile(png, label, null, file, raw);
       } catch (e) { tile(null, label, e.message); }
     }
   }
   status(`完成 ${results.length}/${total} 張`);
-  $('#zip').hidden = !results.length; gen.disabled = false;
+  $('#export').hidden = !results.length; gen.disabled = false;
 };
-function tile(blob, label, err, file) {
+function tile(png, label, err, file, raw) {
   const d = document.createElement('div'); d.className = 'tile';
-  if (blob) {
-    const url = URL.createObjectURL(blob);
-    d.append(Object.assign(new Image(), { src: url, alt: label }), Object.assign(document.createElement('a'), { href: url, download: file, textContent: '下載' }));
+  if (png) {
+    const url = URL.createObjectURL(png), links = document.createElement('div'); links.className = 'links';
+    d.append(Object.assign(new Image(), { src: url, alt: label }));
+    if (navigator.canShare?.({ files: [new File([png], 'a.png', { type: 'image/png' })] }))
+      links.append(Object.assign(document.createElement('button'), { textContent: '分享', onclick: () => navigator.share({ files: [new File([png], `${file}.png`, { type: 'image/png' })], title: 'memes.com' }).catch(() => {}) }));
+    links.append(Object.assign(document.createElement('a'), { href: url, download: `${file}.png`, textContent: '下載' }),
+                 Object.assign(document.createElement('a'), { href: URL.createObjectURL(raw), download: `${file}-raw.png`, textContent: '原圖' }));
+    d.append(links);
   } else d.append(Object.assign(document.createElement('div'), { className: 'err', textContent: err }));
   d.append(Object.assign(document.createElement('small'), { textContent: label }));
   $('#results').append(d);
 }
+
+/* ---------- 4. 各平台匯出 ---------- */
+async function fit(sticker, w, h, type, maxKB) {   // 等比縮進 w×h 透明畫布；有上限就降畫質到塞得下
+  const k = Math.min(w / S, h / S), c = canvas(w, h);
+  c.getContext('2d').drawImage(sticker, (w - S * k) / 2, (h - S * k) / 2, S * k, S * k);
+  let q = .92, blob = await toBlob(c, type, q);
+  while (maxKB && blob.size > maxKB * 1024 && q > .3) blob = await toBlob(c, type, q -= .1);
+  return blob;
+}
+$('#platform').replaceChildren(...Object.entries(PLATFORMS).map(([k, p]) => Object.assign(document.createElement('option'), { value: k, textContent: p.label })));
+const renderHowto = () => $('#howto').replaceChildren(...HOWTO[$('#platform').value].map(t => Object.assign(document.createElement('li'), { textContent: t })));
+$('#platform').onchange = renderHowto; renderHowto();
 $('#zip').onclick = async () => {
   if (!window.JSZip) return alert('zip 元件沒載入（離線？），請個別下載');
-  const zip = new JSZip(); results.forEach(r => zip.file(r.file, r.blob));
-  const blob = await zip.generateAsync({ type: 'blob' });
-  Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'memes.zip' }).click();
+  const k = $('#platform').value, P = PLATFORMS[k], zip = new JSZip();
+  const stickers = results.map(r => r.sticker);
+  for (let i = 0; i < stickers.length; i++) zip.file(`${String(i + 1).padStart(2, '0')}.${P.ext}`, await fit(stickers[i], ...P.box, P.type, P.maxKB));
+  for (const [name, blob] of P.extra ? P.extra(stickers) : []) zip.file(name, await blob);
+  Object.assign(document.createElement('a'), { href: URL.createObjectURL(await zip.generateAsync({ type: 'blob' })), download: `memes-${k}.zip` }).click();
 };
-Object.assign(window, { addChar, addAct });          // 給測試腳本用
+/* Telegram：用你自己的 bot 建貼圖包（Bot API 允許瀏覽器直連） */
+$('#tgGo').onclick = async () => {
+  const token = $('#tgToken').value.trim(), user = $('#tgUser').value.trim(), title = $('#tgTitle').value.trim() || 'memes.com';
+  const out = $('#tgOut'); if (!token || !user) return out.textContent = '要填 bot token 和 user id';
+  out.textContent = '建立中…';
+  const api = async (method, form) => { const j = await (await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', body: form })).json(); if (!j.ok) throw new Error(j.description || method + ' 失敗'); return j.result; };
+  try {
+    const me = await api('getMe', new FormData());
+    const name = `memes_${Date.now().toString(36)}_by_${me.username}`;
+    const fd = new FormData(); fd.set('user_id', user); fd.set('name', name); fd.set('title', title);
+    const list = [], first = results.slice(0, 50);                     // 一次最多 50 張，其餘用 addStickerToSet 補
+    first.forEach((r, i) => { fd.set(`s${i}`, r.png, `s${i}.png`); list.push({ sticker: `attach://s${i}`, format: 'static', emoji_list: ['😀'] }); });
+    fd.set('stickers', JSON.stringify(list));
+    await api('createNewStickerSet', fd);
+    for (const r of results.slice(50)) {
+      const f = new FormData(); f.set('user_id', user); f.set('name', name); f.set('s', r.png, 's.png');
+      f.set('sticker', JSON.stringify({ sticker: 'attach://s', format: 'static', emoji_list: ['😀'] }));
+      await api('addStickerToSet', f);
+    }
+    out.innerHTML = ''; out.append('完成 → ', Object.assign(document.createElement('a'), { href: `https://t.me/addstickers/${name}`, target: '_blank', textContent: `t.me/addstickers/${name}` }));
+  } catch (e) { out.textContent = 'Telegram 回錯：' + e.message; }
+};
+Object.assign(window, { addChar, addAct, addPreset, toSticker, fit });   // 給測試腳本用
 loadGallery();
 </script>
 </body>

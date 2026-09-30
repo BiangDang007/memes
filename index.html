@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>memes.com</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--bg:#0f1115;--panel:#181b22;--line:#2a2f3a;--fg:#e8eaf0;--muted:#8a91a3;--accent:#ffcf33}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Noto Sans TC",sans-serif}
+header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2}
+h1{margin:0 auto 0 0;font-size:22px}
+h1 span{color:var(--accent)}
+input[type=text]{background:var(--panel);border:1px solid var(--line);color:var(--fg);padding:8px 10px;border-radius:8px;min-width:0;font:inherit}
+button,.btn{background:var(--panel);color:var(--fg);border:1px solid var(--line);padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit;text-align:center}
+.primary{background:var(--accent);color:#111;border-color:var(--accent);font-weight:700}
+button:disabled{opacity:.4;cursor:not-allowed}
+main{display:grid;grid-template-columns:280px 1fr 340px;gap:12px;padding:12px 16px}
+@media (max-width:960px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+h2{margin:0 0 8px;font-size:12px;color:var(--muted);letter-spacing:.1em}
+#search{width:100%;margin-bottom:8px}
+#gallery{max-height:70vh;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px}
+#gallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;cursor:grab;background:#000}
+#gallery img:hover{outline:2px solid var(--accent)}
+#board{min-height:240px;border:2px dashed var(--line);border-radius:10px;display:flex;flex-wrap:wrap;gap:10px;padding:10px;align-content:flex-start}
+#board.over{border-color:var(--accent)}
+#board:empty::before{content:"把左邊的迷因拖到這裡（手機直接點圖）";color:var(--muted);margin:auto}
+.chip{position:relative;width:120px}
+.chip img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
+.chip b{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:#000c;text-align:center;line-height:22px;cursor:pointer}
+.chip small{display:block;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+video,#selfie{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;background:#000;display:block}
+video{transform:scaleX(-1)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.row>*{flex:1}
+#results{padding:0 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+#results img{width:100%;border-radius:10px;display:block}
+#results a{display:block;text-align:center;color:var(--accent);font-size:13px;margin-top:4px}
+#status{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>memes<span>.com</span></h1>
+  <input id="top" type="text" placeholder="上方文字（可空）" aria-label="上方文字">
+  <input id="bottom" type="text" placeholder="下方文字（可空）" aria-label="下方文字">
+  <button id="gen" class="primary" disabled>生成一連串迷因</button>
+  <span id="status"></span>
+</header>
+<main>
+  <aside class="panel">
+    <h2>迷因庫</h2>
+    <input id="search" type="text" placeholder="搜尋 drake、cat…" aria-label="搜尋迷因">
+    <div id="gallery"></div>
+  </aside>
+  <section class="panel">
+    <h2>你的板子</h2>
+    <div id="board"></div>
+  </section>
+  <section class="panel">
+    <h2>自拍</h2>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="selfie" hidden></canvas>
+    <div class="row">
+      <button id="cam">開鏡頭</button>
+      <button id="snap" disabled>拍照</button>
+      <label class="btn">上傳照片<input id="upload" type="file" accept="image/*" hidden></label>
+    </div>
+  </section>
+</main>
+<section id="results"></section>
+<div class="row" style="padding:12px 16px 40px"><button id="zip" class="primary" hidden>下載全部（zip）</button></div>
+<script>
+const $ = s => document.querySelector(s);
+const API = 'https://api.imgflip.com/get_memes';
+let templates = [], board = [], selfie = null, results = [];
+const cache = {};
+const status = t => $('#status').textContent = t;
+
+function loadImg(url) {
+  return cache[url] ??= new Promise((ok, no) => {
+    const i = new Image(); i.crossOrigin = 'anonymous';   // 一定要在 src 之前，否則 canvas 會被污染
+    i.onload = () => ok(i); i.onerror = () => no(new Error('圖片載入失敗'));
+    i.src = url;
+  });
+}
+
+/* ---------- 迷因庫（imgflip 公開 API；圖片有 CORS 標頭，可畫進 canvas） ---------- */
+async function loadGallery() {
+  status('載入迷因庫…');
+  try {
+    templates = (await (await fetch(API)).json()).data.memes;
+    renderGallery();
+    status(`${templates.length} 張迷因就緒：拖圖到板子 → 自拍 → 生成`);
+  } catch { status('迷因庫載入失敗，請重新整理'); }
+}
+function renderGallery(q = '') {
+  const g = $('#gallery'); g.replaceChildren();
+  for (const t of templates) {
+    if (!t.name.toLowerCase().includes(q)) continue;
+    const img = new Image(); img.crossOrigin = 'anonymous'; img.loading = 'lazy';
+    img.src = t.url; img.alt = img.title = t.name; img.draggable = true;
+    img.ondragstart = e => e.dataTransfer.setData('text/plain', t.id);
+    img.onclick = () => addToBoard(t.id);
+    g.append(img);
+  }
+}
+$('#search').oninput = e => renderGallery(e.target.value.trim().toLowerCase());
+
+/* ---------- 板子：拖放或點擊加入 ---------- */
+const boardEl = $('#board');
+boardEl.ondragover = e => { e.preventDefault(); boardEl.classList.add('over'); };
+boardEl.ondragleave = () => boardEl.classList.remove('over');
+boardEl.ondrop = e => { e.preventDefault(); boardEl.classList.remove('over'); addToBoard(e.dataTransfer.getData('text/plain')); };
+function addToBoard(id) {
+  const t = templates.find(t => t.id === id);
+  if (t && !board.includes(t)) { board.push(t); renderBoard(); }
+}
+function renderBoard() {
+  boardEl.replaceChildren(...board.map(t => {
+    const chip = document.createElement('div'); chip.className = 'chip';
+    const img = new Image(); img.crossOrigin = 'anonymous'; img.src = t.url; img.alt = t.name;
+    const x = document.createElement('b'); x.textContent = '×'; x.title = '移除';
+    x.onclick = () => { board = board.filter(b => b !== t); renderBoard(); };
+    const name = document.createElement('small'); name.textContent = t.name;   // textContent：API 資料不進 innerHTML
+    chip.append(img, x, name); return chip;
+  }));
+  updateGen();
+}
+const updateGen = () => $('#gen').disabled = !(board.length && selfie);
+
+/* ---------- 自拍 ---------- */
+const video = $('#video'), selfieEl = $('#selfie');
+$('#cam').onclick = async () => {
+  try {
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    video.hidden = false; selfieEl.hidden = true; $('#snap').disabled = false;
+  } catch (e) { status('開不了鏡頭：' + e.message + '（可改用上傳照片）'); }
+};
+$('#snap').onclick = () => {
+  if (!video.videoWidth) return status('鏡頭還沒準備好，再按一次');
+  drawSelfie(video, video.videoWidth, video.videoHeight, true);
+};
+$('#upload').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const img = await loadImg(URL.createObjectURL(f)); drawSelfie(img, img.width, img.height, false); }
+  catch { status('這個檔案讀不了，換一張試試'); }
+};
+function drawSelfie(src, w, h, mirror) {
+  selfieEl.width = w; selfieEl.height = h;              // 設尺寸會順便重置 context 狀態
+  const c = selfieEl.getContext('2d');
+  if (mirror) c.setTransform(-1, 0, 0, 1, w, 0);        // 鏡像：跟預覽一致，所見即所得
+  c.drawImage(src, 0, 0, w, h);
+  selfie = selfieEl; video.hidden = true; selfieEl.hidden = false;
+  video.srcObject?.getTracks().forEach(t => t.stop()); video.srcObject = null;
+  $('#snap').disabled = true; $('#cam').textContent = '重拍'; updateGen();
+}
+
+/* ---------- 生成：板子上每張迷因 × 每種排版 = 一連串 ----------
+   想加新排版：照這格式加一個 {dims, draw}，生成時自動多一組。
+   dims(tw, th) 回傳輸出畫布大小；draw 把迷因 tpl 和自拍 face 畫上去。 */
+const LAYOUTS = {
+  sticker: {   // 迷因全幅，右下角貼圓形自拍
+    dims: (w, h) => [w, h],
+    draw(ctx, W, H, tpl, face) {
+      cover(ctx, tpl, 0, 0, W, H);
+      const r = Math.min(W, H) * .2, cx = W - r - W * .03, cy = H - r - H * .03;
+      ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+      cover(ctx, face, cx - r, cy - r, 2 * r, 2 * r); ctx.restore();
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.lineWidth = r * .08; ctx.strokeStyle = '#fff'; ctx.stroke();
+    },
+  },
+  split: {     // 左迷因、右自拍
+    dims: (w, h) => [w * 2, h],
+    draw(ctx, W, H, tpl, face) { cover(ctx, tpl, 0, 0, W / 2, H); cover(ctx, face, W / 2, 0, W / 2, H); },
+  },
+  stack: {     // 上迷因、下自拍（經典反應圖）
+    dims: (w, h) => [w, Math.round(h * 1.6)],
+    draw(ctx, W, H, tpl, face) { const T = H / 1.6; cover(ctx, tpl, 0, 0, W, T); cover(ctx, face, 0, T, W, H - T); },
+  },
+};
+
+function cover(ctx, img, x, y, w, h) {   // 等比裁切、填滿 (x,y,w,h)
+  const s = Math.max(w / img.width, h / img.height), sw = w / s, sh = h / s;
+  ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, w, h);
+}
+function caption(ctx, W, H, top, bottom) {
+  ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round';
+  const font = s => `900 ${s}px Impact,"Arial Black","Noto Sans TC",sans-serif`;
+  for (const [text, y, base] of [[top, H * .02, 'top'], [bottom, H * .98, 'bottom']]) {
+    if (!text) continue;
+    let size = Math.round(H / 9); ctx.font = font(size);
+    while (size > 14 && ctx.measureText(text).width > W * .94) ctx.font = font(--size);   // 太長就縮字
+    ctx.lineWidth = size / 10; ctx.textBaseline = base;
+    ctx.strokeText(text, W / 2, y); ctx.fillText(text, W / 2, y);
+  }
+}
+
+$('#gen').onclick = async () => {
+  const gen = $('#gen'); gen.disabled = true;
+  results = []; $('#results').replaceChildren(); $('#zip').hidden = true;
+  const top = $('#top').value.trim(), bottom = $('#bottom').value.trim();
+  const total = board.length * Object.keys(LAYOUTS).length;
+  for (const t of board) {
+    try {
+      const tpl = await loadImg(t.url);
+      const k = Math.min(1, 1000 / Math.max(tpl.width, tpl.height));   // 長邊最多 1000px，zip 才不會爆
+      for (const [name, L] of Object.entries(LAYOUTS)) {
+        const [W, H] = L.dims(Math.round(tpl.width * k), Math.round(tpl.height * k));
+        const c = Object.assign(document.createElement('canvas'), { width: W, height: H });
+        const ctx = c.getContext('2d');
+        L.draw(ctx, W, H, tpl, selfie); caption(ctx, W, H, top, bottom);
+        const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .9));
+        if (!blob) throw new Error('toBlob 失敗');
+        const file = `${t.name.replace(/[^\w一-鿿]+/g, '_')}-${name}.jpg`;
+        results.push({ file, blob }); showResult(file, blob);
+        status(`生成中 ${results.length}/${total}`);
+      }
+    } catch (e) { console.error(t.name, e); }
+  }
+  status(`完成 ${results.length}/${total} 張`);
+  $('#zip').hidden = !results.length; gen.disabled = false;
+};
+function showResult(file, blob) {
+  const url = URL.createObjectURL(blob);
+  const img = Object.assign(new Image(), { src: url, alt: file });
+  const a = Object.assign(document.createElement('a'), { href: url, download: file, textContent: '下載' });
+  const d = document.createElement('div'); d.append(img, a); $('#results').append(d);
+}
+$('#zip').onclick = async () => {
+  if (!window.JSZip) return alert('zip 元件沒載入（離線？），請個別下載');
+  const zip = new JSZip(); results.forEach(r => zip.file(r.file, r.blob));
+  const blob = await zip.generateAsync({ type: 'blob' });
+  Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'memes.zip' }).click();
+};
+loadGallery();
+</script>
+</body>
+</html>
